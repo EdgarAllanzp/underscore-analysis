@@ -67,6 +67,14 @@
   // functions.
   var optimizeCb = function(func, context, argCount) {
     if (context === void 0) return func;
+    //  void 是一个一元操作符且永远返回 undefined，void 后面可以跟任何常量、变量，
+    //  这里使用 0 是因为短且符合语言习惯。
+    //  undefined 不是保留字，而是一个全局只读变量，在函数作用域可以赋值。
+    //  通过 Object.getOwnPropertyDescriptor 可以证明 undefined 是全局对象的只读属性。
+    //  相比较 null 是保留字，并且 null 是一个原始类型，所以不能赋值。
+    //  具体可以参考：
+    //  https://stackoverflow.com/questions/7452341/what-does-void-0-mean
+
     switch (argCount) {
       case 1: return function(value) {
         return func.call(context, value);
@@ -81,6 +89,16 @@
         return func.call(context, accumulator, value, index, collection);
       };
     }
+
+    // 其实不用上面的 switch-case 语句
+    // 直接执行下面的 return 函数就行了
+    // 不这样做的原因是 call 比 apply 快很多
+    // .apply 在运行前要对作为参数的数组进行一系列检验和深拷贝，.call 则没有这些步骤
+    // 具体可以参考：
+    // https://segmentfault.com/q/1010000007894513
+    // http://www.ecma-international.org/ecma-262/5.1/#sec-15.3.4.3
+    // http://www.ecma-international.org/ecma-262/5.1/#sec-15.3.4.4
+    // by hanzichi https://github.com/hanzichi/underscore-analysis
     return function() {
       return func.apply(context, arguments);
     };
@@ -162,6 +180,10 @@
   // Avoids a very nasty iOS 8 JIT bug on ARM-64. #2094
   var MAX_ARRAY_INDEX = Math.pow(2, 53) - 1;
   var getLength = shallowProperty('length');
+
+  //  判断集合是否 数组 或者 类数组 类型
+  //  判断方法是通过获取集合对象的 length 属性，判断 length 属性的类型以及范围
+  //  notice: { length: 3 } 这样的对象也会判定是 类数组类型，包括字符串、函数等。
   var isArrayLike = function(collection) {
     var length = getLength(collection);
     return typeof length == 'number' && length >= 0 && length <= MAX_ARRAY_INDEX;
@@ -177,10 +199,12 @@
     iteratee = optimizeCb(iteratee, context);
     var i, length;
     if (isArrayLike(obj)) {
+      //  arrayLike类型则根据索引从0开始做循环迭代
       for (i = 0, length = obj.length; i < length; i++) {
         iteratee(obj[i], i, obj);
       }
     } else {
+      //  非arrayLike类型则根据对象的key值做循环迭代
       var keys = _.keys(obj);
       for (i = 0, length = keys.length; i < length; i++) {
         iteratee(obj[keys[i]], keys[i], obj);
@@ -286,8 +310,11 @@
   // Determine if the array or object contains a given item (using `===`).
   // Aliased as `includes` and `include`.
   _.contains = _.includes = _.include = function(obj, item, fromIndex, guard) {
+    //  将 非arrayLike类型 的对象，转换成一个数组
     if (!isArrayLike(obj)) obj = _.values(obj);
+    //  判定 fromIndex, guard 是什么鬼
     if (typeof fromIndex != 'number' || guard) fromIndex = 0;
+    //  调用 Array.indexOf 方法
     return _.indexOf(obj, item, fromIndex) >= 0;
   };
 
@@ -683,6 +710,12 @@
   };
 
   // Generator function to create the indexOf and lastIndexOf functions.
+
+  //  _.indexOf = createIndexFinder(1, _.findIndex, _.sortedIndex);
+  //  _.indexOf(array, value, [isSorted|fromIndex]) 
+
+  //  _.lastIndexOf = createIndexFinder(-1, _.findLastIndex);
+  //  _.lastIndexOf(array, value, [fromIndex]) 
   var createIndexFinder = function(dir, predicateFind, sortedIndex) {
     return function(array, item, idx) {
       var i = 0, length = getLength(array);
@@ -976,12 +1009,18 @@
     var constructor = obj.constructor;
     var proto = _.isFunction(constructor) && constructor.prototype || ObjProto;
 
+    // TODO
+    // Fix IE non-enumerable properties #commit https://github.com/jashkenas/underscore/commit/5bfd4f9ddcf2768cedf56fb2fe621caae7833f76
     // Constructor is a special case.
     var prop = 'constructor';
+    //  如果 obj 具有 constructor 属性且 keys数组 不包含 constructor，则加上 constructor 属性
     if (_.has(obj, prop) && !_.contains(keys, prop)) keys.push(prop);
 
     while (nonEnumIdx--) {
       prop = nonEnumerableProps[nonEnumIdx];
+      //  如果 obj 具有 constructor 属性
+      //  且 obj的原型 中没有 constructor属性 
+      //  且 keys数组 不包含 constructor，则加上 constructor 属性
       if (prop in obj && obj[prop] !== proto[prop] && !_.contains(keys, prop)) {
         keys.push(prop);
       }
@@ -991,9 +1030,12 @@
   // Retrieve the names of an object's own properties.
   // Delegates to **ECMAScript 5**'s native `Object.keys`.
   _.keys = function(obj) {
+    //  如果不是对象，则返回空数组
     if (!_.isObject(obj)) return [];
+    //  代理 ECMAScript 5 原生的 Object.keys 方法
     if (nativeKeys) return nativeKeys(obj);
     var keys = [];
+    //  遍历对象自己的key值
     for (var key in obj) if (_.has(obj, key)) keys.push(key);
     // Ahem, IE < 9.
     if (hasEnumBug) collectNonEnumProps(obj, keys);
@@ -1006,15 +1048,21 @@
     var keys = [];
     for (var key in obj) keys.push(key);
     // Ahem, IE < 9.
+    //  部分对象属性无法在 IE9 以下的浏览器中枚举，
+    //  这里采取了向下兼容的写法，具体可以参考：
+    //  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/keys
     if (hasEnumBug) collectNonEnumProps(obj, keys);
     return keys;
   };
 
   // Retrieve the values of an object's properties.
   _.values = function(obj) {
+    //  获取 obj 的keys
     var keys = _.keys(obj);
     var length = keys.length;
+    //  创建 value 数组，长度与 keys 一样
     var values = Array(length);
+    //  将 obj 的值一个个复制到 values
     for (var i = 0; i < length; i++) {
       values[i] = obj[keys[i]];
     }
@@ -1308,6 +1356,9 @@
 
   // Is a given value an array?
   // Delegates to ECMA5's native Array.isArray
+  //  优先使用原生 isArray，否则使用polyfill
+  //  具体可以参考：
+  //  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/isArray
   _.isArray = nativeIsArray || function(obj) {
     return toString.call(obj) === '[object Array]';
   };
@@ -1315,6 +1366,7 @@
   // Is a given variable an object?
   _.isObject = function(obj) {
     var type = typeof obj;
+    //  不为 null 的 function 或 object 类型
     return type === 'function' || type === 'object' && !!obj;
   };
 
@@ -1369,18 +1421,36 @@
 
   // Shortcut function for checking if an object has a given property directly
   // on itself (in other words, not on a prototype).
+  //  这里的文档没更新，第二个参数是 key 或者 路径数组
+  //  参考 lodash 文档，https://lodash.com/docs#has
+  //  Checks if `path` is a direct property of `object`.
+  //  Arguments:
+  //    obj (Object): The object to query.
+  //    path (Array|string): The path to check.
+  //  Returns
+  //    (boolean): Returns `true` if `path` exists, else `false`.
   _.has = function(obj, path) {
+    //  如果 path 不是数组
     if (!_.isArray(path)) {
+      //  判断该对象中是否具有 path 属性
+      //  TODO
+      //  为什么不用 obj.hasOwnProperty(path); TODO
+      //  具体可以参考：
+      //  https://stackoverflow.com/questions/12017693/why-use-object-prototype-hasownproperty-callmyobj-prop-instead-of-myobj-hasow
       return obj != null && hasOwnProperty.call(obj, path);
     }
+    //  如果 path 是数组
     var length = path.length;
     for (var i = 0; i < length; i++) {
       var key = path[i];
+      //  其中一个数组元素不是该对象的属性就返回 false
       if (obj == null || !hasOwnProperty.call(obj, key)) {
         return false;
       }
+      //  将当前 obj 变量指向 obj[key]
       obj = obj[key];
     }
+    //  传入空数组则返回 false
     return !!length;
   };
 
