@@ -120,6 +120,7 @@
   // External wrapper for our callback generator. Users may customize
   // `_.iteratee` if they want additional predicate/iteratee shorthand styles.
   // This abstraction hides the internal-only argCount argument.
+  //  隐藏 argCount 参数
   _.iteratee = builtinIteratee = function(value, context) {
     return cb(value, context, Infinity);
   };
@@ -164,6 +165,7 @@
       return obj == null ? void 0 : obj[key];
     };
   };
+
 
   var deepGet = function(obj, path) {
     var length = path.length;
@@ -215,37 +217,54 @@
 
   // Return the results of applying the iteratee to each element.
   _.map = _.collect = function(obj, iteratee, context) {
+    // 根据 iteratee类型 设置不同迭代函数 
     iteratee = cb(iteratee, context);
+    //  如果迭代对象的类型是非数组，则获取该对象的keys，否则keys为false
     var keys = !isArrayLike(obj) && _.keys(obj),
+    //  获取长度，数组 或 类数组 两种情况
         length = (keys || obj).length,
         results = Array(length);
+    //  遍历跌倒
     for (var index = 0; index < length; index++) {
+      //  当前遍历索引，obj为对象时，为obj的key，obj是数组时为index
       var currentKey = keys ? keys[index] : index;
       results[index] = iteratee(obj[currentKey], currentKey, obj);
     }
+    //  结果数组
     return results;
   };
 
   // Create a reducing function iterating left or right.
+  //  reducer生成器
+  //  _.reduce = _.foldl = _.inject = createReduce(1);
+  //  _.reduceRight = _.foldr = createReduce(-1);
   var createReduce = function(dir) {
     // Wrap code that reassigns argument variables in a separate function than
     // the one that accesses `arguments.length` to avoid a perf hit. (#1991)
     var reducer = function(obj, iteratee, memo, initial) {
+      //  keys 为 false 或者 对象的keys
       var keys = !isArrayLike(obj) && _.keys(obj),
+          //  length 为 对象keys的长度 或者 数组的长度
           length = (keys || obj).length,
+          //  index 是第一位还是最后一位
           index = dir > 0 ? 0 : length - 1;
+      //  如果没有初始值，则初始值为遍历开始第一个值
       if (!initial) {
         memo = obj[keys ? keys[index] : index];
+        //  变更遍历起点下标
         index += dir;
       }
+      //  0 <= index < length 中循环
       for (; index >= 0 && index < length; index += dir) {
         var currentKey = keys ? keys[index] : index;
+        //  memo 是累加器
         memo = iteratee(memo, obj[currentKey], currentKey, obj);
       }
       return memo;
     };
 
     return function(obj, iteratee, memo, context) {
+      //  根据参数个数判断是否具有初始值
       var initial = arguments.length >= 3;
       return reducer(obj, optimizeCb(iteratee, context, 4), memo, initial);
     };
@@ -260,8 +279,11 @@
 
   // Return the first value which passes a truth test. Aliased as `detect`.
   _.find = _.detect = function(obj, predicate, context) {
+    //  数组使用 _.findIndex，对象使用 _.findKey
     var keyFinder = isArrayLike(obj) ? _.findIndex : _.findKey;
     var key = keyFinder(obj, predicate, context);
+    //  元素存在则返回该元素
+    //  元素不存在默认返回undefined
     if (key !== void 0 && key !== -1) return obj[key];
   };
 
@@ -269,7 +291,9 @@
   // Aliased as `select`.
   _.filter = _.select = function(obj, predicate, context) {
     var results = [];
+    //  根据 predicate类型 返回断言函数
     predicate = cb(predicate, context);
+    //  迭代遍历元素，满足断言函数则压入results
     _.each(obj, function(value, index, list) {
       if (predicate(value, index, list)) results.push(value);
     });
@@ -278,6 +302,7 @@
 
   // Return all the elements for which a truth test fails.
   _.reject = function(obj, predicate, context) {
+    //  filter的补集，返回不满足条件的元素
     return _.filter(obj, _.negate(cb(predicate)), context);
   };
 
@@ -287,8 +312,10 @@
     predicate = cb(predicate, context);
     var keys = !isArrayLike(obj) && _.keys(obj),
         length = (keys || obj).length;
+    //  遍历所有元素
     for (var index = 0; index < length; index++) {
       var currentKey = keys ? keys[index] : index;
+      //  其中一个元素不满足条件，则返回false
       if (!predicate(obj[currentKey], currentKey, obj)) return false;
     }
     return true;
@@ -302,6 +329,7 @@
         length = (keys || obj).length;
     for (var index = 0; index < length; index++) {
       var currentKey = keys ? keys[index] : index;
+      //  其中一个元素满足条件，则返回true
       if (predicate(obj[currentKey], currentKey, obj)) return true;
     }
     return false;
@@ -312,7 +340,8 @@
   _.contains = _.includes = _.include = function(obj, item, fromIndex, guard) {
     //  将 非arrayLike类型 的对象，转换成一个数组
     if (!isArrayLike(obj)) obj = _.values(obj);
-    //  判定 fromIndex, guard 是什么鬼
+    //  判定 fromIndex 
+    //  如果守卫为真，直接从零开始
     if (typeof fromIndex != 'number' || guard) fromIndex = 0;
     //  调用 Array.indexOf 方法
     return _.indexOf(obj, item, fromIndex) >= 0;
@@ -321,9 +350,11 @@
   // Invoke a method (with arguments) on every item in a collection.
   _.invoke = restArgs(function(obj, path, args) {
     var contextPath, func;
+    //  path是函数，则赋值给func
     if (_.isFunction(path)) {
       func = path;
     } else if (_.isArray(path)) {
+      //  contextPath 为 path[0 -- length - 2]
       contextPath = path.slice(0, -1);
       path = path[path.length - 1];
     }
@@ -1005,22 +1036,33 @@
                       'propertyIsEnumerable', 'hasOwnProperty', 'toLocaleString'];
 
   var collectNonEnumProps = function(obj, keys) {
+    //  不可枚举属性数组的索引设置为该数组的最大长度
     var nonEnumIdx = nonEnumerableProps.length;
     var constructor = obj.constructor;
+    //  获取 obj 对象的原型对象
+    //  如果obj的构造函数属性的值是函数类型，并且存在该构造函数的原型对象，
+    //  则 obj 对象的原型对象 为 该构造函数的原型对象，
+    //  否则为 Object.prototype
     var proto = _.isFunction(constructor) && constructor.prototype || ObjProto;
 
-    // TODO
+    // 不明白 constructor 为什么要区分对待，我认为统一使用 第二种方式 就可以了。
     // Fix IE non-enumerable properties #commit https://github.com/jashkenas/underscore/commit/5bfd4f9ddcf2768cedf56fb2fe621caae7833f76
     // Constructor is a special case.
     var prop = 'constructor';
-    //  如果 obj 具有 constructor 属性且 keys数组 不包含 constructor，则加上 constructor 属性
+    //  如果 obj 自身具有 constructor 属性
+    //  但是遍历出这个 obj 的keys数组不包含 constructor属性，
+    //  则加上 constructor 属性
     if (_.has(obj, prop) && !_.contains(keys, prop)) keys.push(prop);
 
+    //  遍历不可枚举属性数组
     while (nonEnumIdx--) {
       prop = nonEnumerableProps[nonEnumIdx];
-      //  如果 obj 具有 constructor 属性
-      //  且 obj的原型 中没有 constructor属性 
-      //  且 keys数组 不包含 constructor，则加上 constructor 属性
+      //  obj 自身具有 prop属性，也可能在 obj 的原型对象上
+      //  但是obj上的prop的值与obj原型对象上的prop的值不一样 
+      //  并且遍历出这个 obj 的keys数组不包含 prop属性 
+      //  则加上 prop 属性
+      //  prop in obj 是为了避免 prototype为null 的特殊情况
+      //  具体可以参考：https://github.com/hanzichi/underscore-analysis/issues/3#issuecomment-310282099
       if (prop in obj && obj[prop] !== proto[prop] && !_.contains(keys, prop)) {
         keys.push(prop);
       }
@@ -1038,6 +1080,10 @@
     //  遍历对象自己的key值
     for (var key in obj) if (_.has(obj, key)) keys.push(key);
     // Ahem, IE < 9.
+    //  部分对象属性无法在 IE9 以下的浏览器中枚举，
+    //  这里采取了向下兼容的写法，具体可以参考：
+    //  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/keys
+    //  loash 没有做相关的兼容写法，直接用的 Object.keys();
     if (hasEnumBug) collectNonEnumProps(obj, keys);
     return keys;
   };
@@ -1051,6 +1097,7 @@
     //  部分对象属性无法在 IE9 以下的浏览器中枚举，
     //  这里采取了向下兼容的写法，具体可以参考：
     //  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/keys
+    //  loash 没有做相关的兼容写法，直接用的 Object.keys();
     if (hasEnumBug) collectNonEnumProps(obj, keys);
     return keys;
   };
