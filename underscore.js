@@ -130,6 +130,7 @@
   var restArgs = function(func, startIndex) {
     startIndex = startIndex == null ? func.length - 1 : +startIndex;
     return function() {
+      //  长度是参数个数减去起始个数
       var length = Math.max(arguments.length - startIndex, 0),
           rest = Array(length),
           index = 0;
@@ -166,7 +167,7 @@
     };
   };
 
-
+  //  根据path数组，获取obj中的值
   var deepGet = function(obj, path) {
     var length = path.length;
     for (var i = 0; i < length; i++) {
@@ -362,16 +363,19 @@
       var method = func;
       if (!method) {
         if (contextPath && contextPath.length) {
+          //  获取当前作用对象
           context = deepGet(context, contextPath);
         }
         if (context == null) return void 0;
         method = context[path];
       }
+      //  context
       return method == null ? method : method.apply(context, args);
     });
   });
 
   // Convenience version of a common use case of `map`: fetching a property.
+  //  返回每个元素的某个属性
   _.pluck = function(obj, key) {
     return _.map(obj, _.property(key));
   };
@@ -1143,9 +1147,9 @@
   };
 
   // Invert the keys and values of an object. The values must be serializable.
+  //  对调 obj 的键值对
   _.invert = function(obj) {
     var result = {};
-    var keys = _.keys(obj);
     for (var i = 0, length = keys.length; i < length; i++) {
       result[obj[keys[i]]] = keys[i];
     }
@@ -1163,10 +1167,15 @@
   };
 
   // An internal function for creating assigner functions.
+  //  _.extend = createAssigner(_.allKeys);
+  //  _.extendOwn = _.assign = createAssigner(_.keys);
+  //  _.defaults = createAssigner(_.allKeys, true);
   var createAssigner = function(keysFunc, defaults) {
     return function(obj) {
       var length = arguments.length;
+      //  显式类型转换为Object
       if (defaults) obj = Object(obj);
+      //  如果参数个数小于2 或者 obj为null，则直接返回obj
       if (length < 2 || obj == null) return obj;
       for (var index = 1; index < length; index++) {
         var source = arguments[index],
@@ -1397,6 +1406,20 @@
   };
 
   // Is a given value a DOM element?
+  //  nodeTypes:
+  //  1 Element
+  //  2 Attr
+  //  3 Text
+  //  4 CDATASection
+  //  5 Entity
+  //  6 Entity
+  //  7 ProcessingInstruction
+  //  8 Comment
+  //  9 Document
+  //  10 DocumentType
+  //  11 DocumentFragment
+  //  12 Notation
+  //  具体可以参考：http://www.w3school.com.cn/jsref/prop_node_nodetype.asp
   _.isElement = function(obj) {
     return !!(obj && obj.nodeType === 1);
   };
@@ -1420,12 +1443,14 @@
   // Add some isType methods: isArguments, isFunction, isString, isNumber, isDate, isRegExp, isError, isMap, isWeakMap, isSet, isWeakSet.
   _.each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp', 'Error', 'Symbol', 'Map', 'WeakMap', 'Set', 'WeakSet'], function(name) {
     _['is' + name] = function(obj) {
+      //  Object.prototype.toString.call(obj), 方法同 isArray polyfill
       return toString.call(obj) === '[object ' + name + ']';
     };
   });
 
   // Define a fallback version of the method in browsers (ahem, IE < 9), where
   // there isn't any inspectable "Arguments" type.
+  //  IE9以下的兼容写法，isArguments 会返回 [object object]
   if (!_.isArguments(arguments)) {
     _.isArguments = function(obj) {
       return _.has(obj, 'callee');
@@ -1435,6 +1460,8 @@
   // Optimize `isFunction` if appropriate. Work around some typeof bugs in old v8,
   // IE 11 (#1621), Safari 8 (#1929), and PhantomJS (#2236).
   var nodelist = root.document && root.document.childNodes;
+  //  优化 isFunction ，解决部分浏览器下的bug
+  //  字面量正则不是function，Int8Array不是object，nodelist不是function
   if (typeof /./ != 'function' && typeof Int8Array != 'object' && typeof nodelist != 'function') {
     _.isFunction = function(obj) {
       return typeof obj == 'function' || false;
@@ -1443,11 +1470,13 @@
 
   // Is a given object a finite number?
   _.isFinite = function(obj) {
+    //  不是symbol，无穷，是数
     return !_.isSymbol(obj) && isFinite(obj) && !isNaN(parseFloat(obj));
   };
 
   // Is the given value `NaN`?
   _.isNaN = function(obj) {
+    //  toString === [object Number] && isNaN
     return _.isNumber(obj) && isNaN(obj);
   };
 
@@ -1562,6 +1591,7 @@
   };
 
   // Return a random integer between min and max (inclusive).
+  // 返回一个min 和 max之间的随机整数。如果你只传递一个参数，那么将返回0和这个参数之间的整数
   _.random = function(min, max) {
     if (max == null) {
       max = min;
@@ -1571,6 +1601,7 @@
   };
 
   // A (possibly faster) way to get the current timestamp as an integer.
+  //  返回时间戳
   _.now = Date.now || function() {
     return new Date().getTime();
   };
@@ -1584,6 +1615,17 @@
     "'": '&#x27;',
     '`': '&#x60;'
   };
+
+  /* 
+  var unescapeMap = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    'quot;': '"&',
+    "&#x27;": ''',
+    '&#x60;': '`'
+  };
+  */
   var unescapeMap = _.invert(escapeMap);
 
   // Functions for escaping and unescaping strings to/from HTML interpolation.
@@ -1592,15 +1634,19 @@
       return map[match];
     };
     // Regexes for identifying a key that needs to be escaped.
+    //  (?:&|<|>|"|'|`") 
     var source = '(?:' + _.keys(map).join('|') + ')';
     var testRegexp = RegExp(source);
     var replaceRegexp = RegExp(source, 'g');
+    //  替换被捕获的字符
     return function(string) {
       string = string == null ? '' : '' + string;
       return testRegexp.test(string) ? string.replace(replaceRegexp, escaper) : string;
     };
   };
+  //  转义HTML字符串，替换&, <, >, ", ', 和 /字符
   _.escape = createEscaper(escapeMap);
+  //  和escape相反。转义HTML字符串，替换&, &lt;, &gt;, &quot;, &#96;, 和 &#x2F;字符
   _.unescape = createEscaper(unescapeMap);
 
   // Traverses the children of `obj` along `path`. If a child is a function, it
@@ -1723,6 +1769,7 @@
   };
 
   // Add a "chain" function. Start chaining a wrapped Underscore object.
+  //  链式调用包装函数
   _.chain = function(obj) {
     var instance = _(obj);
     instance._chain = true;
